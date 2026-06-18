@@ -1,10 +1,11 @@
-# Tech News Video Scraper
+# Tech News Video Scraper + generador de carruseles
 
-Aplicación local en Python que busca noticias **recientes con video** sobre
-**tecnología, inteligencia artificial, robótica, ciencia aplicada, chips,
-software y empresas tecnológicas**, las puntúa, las guarda en una base de datos
-local **SQLite** y exporta carpetas listas para publicar como **carrusel** en
-redes sociales (descripción arriba, video embebido abajo).
+Aplicación local en Python que busca noticias **recientes** sobre **tecnología,
+inteligencia artificial, robótica, ciencia aplicada, chips, software y empresas
+tecnológicas**, las puntúa, las guarda en **SQLite** y genera por cada noticia
+una **pieza visual final `slide.png` (1080×1350)** lista para publicar como
+**carrusel de Instagram** estilo tecnológico/premium, además de una galería
+`index.html` para revisarlas todas.
 
 > Pensada como **MVP local para Windows**, con arquitectura modular para luego
 > integrarse con una **API FastAPI** o una **app Flutter**.
@@ -16,14 +17,33 @@ redes sociales (descripción arriba, video embebido abajo).
 - Pregunta el **tema** al iniciar (ENTER = *tecnología e inteligencia artificial*).
 - Configurable: número de noticias (por defecto **5**) e idioma de salida (por defecto **español**).
 - Busca en **múltiples fuentes globales** definidas en `config/sources.yaml` (RSS o HTML).
-- **Cada noticia debe tener video.** Si no lo tiene, se descarta y se busca otra.
+- **Genera `slide.png` real por noticia** (1080×1350) — *no se queda en `card.html` sin renderizar*.
+- **Prioriza noticias con video**; si no completa las N pedidas, **rellena con
+  noticias de imagen de alta calidad** (`media_type: image`).
 - Detecta video por: `<video>`, iframes (YouTube/Vimeo/Dailymotion…), Open Graph, JSON-LD y embeds.
-- **Traducción** modular al español (título y descripción; el video se deja en su idioma).
+- **Comprueba si el video es embebible** (cabeceras `X-Frame-Options`/`CSP`). Si
+  está bloqueado (caso B), **no falla**: guarda el enlace + `video_poster.jpg` y
+  usa esa imagen en el slide, marcando `embed_status: blocked` y el motivo.
+- **Traducción** modular al español (título, descripción, titular y caption cortos para el slide).
 - **Ranking** con puntuación para elegir las mejores noticias.
 - **Deduplicación** por `canonical_url`, `article_url` y hash de título.
-- Carpeta de salida por ejecución con una subcarpeta por noticia.
+- Galería `index.html` + `summary.json` + `summary.txt` por ejecución.
 - Respeta `robots.txt`. **No** salta paywalls, captchas, logins ni DRM. Guarda
   enlaces/embeds de video de terceros (no descarga videos protegidos).
+
+## Cómo se genera el `slide.png`
+
+1. **Opción preferida (más elegante):** `card_template.html` (Jinja2 + CSS) se
+   abre con **Playwright** y se captura un screenshot exacto a 1080×1350. Incluye
+   imagen de fondo, degradado oscuro, titular en MAYÚSCULAS con **palabras clave
+   en violeta** y footer con fuente + fecha.
+2. **Fallback automático (sin navegador):** si Playwright no está instalado, se
+   dibuja el slide con **Pillow** (gradiente tecnológico + imagen + texto). Así
+   el sistema **nunca** se queda sin `slide.png`.
+
+> Para el resultado visual completo (palabras clave en violeta, imagen de fondo
+> nítida) ejecuta `playwright install` una vez. Sin él, el fallback Pillow sigue
+> produciendo un slide limpio y usable.
 
 ---
 
@@ -37,6 +57,7 @@ redes sociales (descripción arriba, video embebido abajo).
 ## Instalación (Windows PowerShell)
 
 ```powershell
+cd C:\ProyectosIA\tech-news-video-scraper
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
@@ -83,17 +104,22 @@ tech_news_video_scraper/
 │   └── news.db            # Base SQLite (se crea sola)
 ├── output/                # Carpetas de salida por ejecución
 ├── templates/
-│   └── card.html          # Plantilla de tarjeta vertical (Jinja2)
+│   ├── card_template.html   # Slide 1080x1350 (Jinja2 + CSS) → screenshot
+│   ├── embed_template.html  # Reproductor / fallback a poster
+│   ├── index_template.html  # Galería del run
+│   └── card.html            # (plantilla heredada, opcional)
 └── src/
     ├── __init__.py
-    ├── database.py        # Esquema SQLite + deduplicación
+    ├── database.py        # Esquema SQLite + deduplicación + migración
     ├── models.py          # Dataclasses (Article, Source, Run)
     ├── scraper.py         # Descarga listados/artículos (requests + Playwright)
     ├── source_loader.py   # Carga sources.yaml
     ├── video_detector.py  # Detección de video
+    ├── media_extractor.py # Hero image, poster, chequeo de embed, descargas
+    ├── card_renderer.py   # Render del slide.png (Playwright + fallback Pillow)
     ├── translator.py      # Traducción modular
     ├── ranker.py          # Puntuación / selección
-    ├── exporter.py        # Genera carpetas y archivos
+    ├── exporter.py        # Genera carpetas, slides, index/summary
     └── utils.py           # Hash, fechas, logging, URLs
 ```
 
@@ -105,34 +131,38 @@ Por cada ejecución se crea:
 
 ```
 output/2026-06-17_14-30-05/
+├── index.html           # Galería con las 5 noticias (preview de cada slide)
+├── summary.json         # Resumen estructurado del run + estadísticas
+├── summary.txt          # Resumen legible
 ├── noticia_01/
+│   ├── slide.png        # ★ PIEZA VISUAL FINAL 1080x1350 (carrusel)
+│   ├── card.html        # HTML usado para generar el slide
+│   ├── embed.html       # Reproductor del video (o fallback a poster)
+│   ├── video_poster.jpg # Miniatura/poster del video (si existe)
+│   ├── hero_image.jpg   # Imagen principal del artículo (si existe)
+│   ├── metadata.json    # Metadatos + puntuación + embed_status
 │   ├── noticia.json     # Objeto completo de la noticia
 │   ├── noticia.txt      # Resumen legible
-│   ├── card.html        # Tarjeta vertical (descripción arriba, video abajo)
-│   ├── embed.html       # Reproductor mínimo
-│   ├── metadata.json    # Metadatos + puntuación
 │   ├── source.url       # Acceso directo a la noticia
 │   ├── video.url        # Acceso directo al video
+│   ├── video_url.txt    # Enlace directo del video (caso B, no embebible)
 │   └── README.txt
 ├── noticia_02/
 └── ...
 ```
 
-`noticia.txt` tiene este formato:
+### Comportamiento del video
 
-```
-Título:
-Descripción corta:
-Fuente:
-Fecha:
-Link noticia:
-Link video:
-Texto para carrusel:
-```
+- **Caso A — video embebible:** `embed.html` muestra el reproductor; se guarda
+  `video_embed_url` y `video_type`; `embed_status: ok`.
+- **Caso B — video bloqueado** (`X-Frame-Options`/`CSP`/DRM): **no falla**. Se
+  guarda `video_url.txt` + `video_poster.jpg`, se usa el poster en `slide.png`,
+  y en `metadata.json` queda `embed_status: blocked` con el motivo.
+- **Caso C — sin video pero con imagen:** se permite si la noticia es de alta
+  calidad (entra en las mejores); `media_type: image`, se usa `hero_image.jpg`
+  en el slide.
 
-Para convertir una tarjeta en imagen/video vertical: abre `card.html` en el
-navegador y captúrala (o automatízalo con una herramienta de captura). El marco
-está diseñado a 1080×1920 (9:16).
+El slide está diseñado a **1080×1350 (4:5 vertical)** para carrusel de Instagram.
 
 ---
 

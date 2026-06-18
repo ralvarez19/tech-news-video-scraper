@@ -1,15 +1,16 @@
-"""app.py — Tech News Video Scraper (MVP local para Windows).
+"""app.py — Tech News Video Scraper + generador de carruseles visuales.
 
-Busca noticias recientes de tecnología/IA con video, las puntúa, guarda en
-SQLite y exporta carpetas listas para publicar como carrusel.
+Busca noticias recientes de tecnología/IA, prioriza las que tienen VIDEO,
+completa con noticias de IMAGEN de alta calidad si hace falta, y genera por cada
+una un slide.png 1080x1350 listo para carrusel (estilo tecnológico/premium),
+además de card.html, embed.html, poster/hero, metadata y la galería index.html.
 
 Uso:
     python app.py
-    python app.py --topic "robótica" --num 5 --lang es
-    python app.py --no-input            # usa valores por defecto sin preguntar
+    python app.py --topic "robótica" --num 5 --lang es --no-input
 
-Respeta robots.txt, no salta paywalls/captchas/DRM y guarda enlaces/embeds
-de video de terceros (no descarga videos protegidos).
+Respeta robots.txt; no salta paywalls/captchas/DRM. Si un video no es embebible,
+NO falla: guarda el enlace + poster y usa la imagen en el slide.
 """
 from __future__ import annotations
 
@@ -17,16 +18,16 @@ import argparse
 import sys
 from pathlib import Path
 
-# Permitir ejecutar como script desde la raíz del proyecto
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from src.utils import load_yaml, setup_logging, get_logger
+from src.utils import load_yaml, setup_logging
 from src.models import Run, Article
 from src.database import Database
 from src.source_loader import load_sources
 from src.scraper import Scraper
 from src.translator import Translator
 from src.ranker import Ranker
+from src.card_renderer import CardRenderer
 from src.exporter import Exporter
 
 try:
@@ -35,7 +36,6 @@ try:
     _console = Console()
 except Exception:  # pragma: no cover
     _console = None
-
 
 SETTINGS_PATH = "config/settings.yaml"
 SOURCES_PATH = "config/sources.yaml"
@@ -52,7 +52,7 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
-def ask_inputs(args: argparse.Namespace, settings: dict) -> tuple[str, int, str]:
+def ask_inputs(args, settings) -> tuple[str, int, str]:
     d = settings.get("defaults", {})
     def_topic = d.get("topic", "tecnología, inteligencia artificial y avances tecnológicos")
     def_num = int(d.get("num_news", 5))
@@ -61,20 +61,16 @@ def ask_inputs(args: argparse.Namespace, settings: dict) -> tuple[str, int, str]
     if args.no_input:
         return (args.topic or def_topic, args.num or def_num, args.lang or def_lang)
 
-    # Tema
     if args.topic:
         topic = args.topic
     else:
         try:
-            entered = input(
-                "¿Qué tema quieres buscar? Presiona ENTER para usar "
-                "tecnología e inteligencia artificial por defecto: "
-            ).strip()
+            entered = input("¿Qué tema quieres buscar? Presiona ENTER para usar "
+                            "tecnología e inteligencia artificial por defecto: ").strip()
         except EOFError:
             entered = ""
         topic = entered or def_topic
 
-    # Número
     if args.num:
         num = args.num
     else:
@@ -84,7 +80,6 @@ def ask_inputs(args: argparse.Namespace, settings: dict) -> tuple[str, int, str]
             raw = ""
         num = int(raw) if raw.isdigit() and int(raw) > 0 else def_num
 
-    # Idioma
     if args.lang:
         lang = args.lang
     else:
@@ -98,6 +93,23 @@ def ask_inputs(args: argparse.Namespace, settings: dict) -> tuple[str, int, str]
 
 
 # --------------------------------------------------------------------------- #
+def _short_headline(title: str, limit: int = 85) -> str:
+    title = (title or "").strip()
+    if len(title) <= limit:
+        return title
+    cut = title[:limit].rsplit(" ", 1)[0]
+    return cut.rstrip(",.;:") + "…"
+
+
+def _short_caption(summary: str, limit: int = 220) -> str:
+    summary = (summary or "").strip()
+    if len(summary) <= limit:
+        return summary
+    cut = summary[:limit].rsplit(" ", 1)[0]
+    return cut.rstrip(",.;:") + "…"
+
+
+# --------------------------------------------------------------------------- #
 def run() -> int:
     args = parse_args()
     settings = load_yaml(SETTINGS_PATH)
@@ -107,7 +119,8 @@ def run() -> int:
     log.info(f"[bold cyan]Tema:[/] {topic}  |  [bold]Noticias:[/] {num_target}  |  "
              f"[bold]Idioma:[/] {lang}")
 
-    # Componentes
+    fallback_to_image = settings.get("video", {}).get("fallback_to_image", True)
+
     db = Database(settings.get("database", {}).get("path", "data/news.db"))
     sources = load_sources(SOURCES_PATH, only_enabled=True)
     for s in sources:
@@ -116,28 +129,23 @@ def run() -> int:
     scraper = Scraper(settings)
     translator = Translator(settings)
     ranker = Ranker(settings)
-    exporter = Exporter(settings)
+    renderer = CardRenderer(settings)
+    exporter = Exporter(settings, renderer=renderer, session=scraper.session)
 
-    require_video = settings.get("video", {}).get("require_video", True)
-
-    run_obj = Run(topic=topic, language=lang, requested=num_target,
-                  output_dir=None)
+    run_obj = Run(topic=topic, language=lang, requested=num_target)
     run_id = db.start_run(run_obj)
 
-    # Contadores
-    found = 0
-    discarded_no_video = 0
+    discarded_no_media = 0
     skipped_duplicates = 0
-
-    candidates: list[Article] = []
+    video_candidates: list[Article] = []
+    image_candidates: list[Article] = []
     seen_in_run: set[str] = set()
 
-    # ---------------------- Recolección ---------------------- #
-    # Se sobre-recolecta (3x) para luego elegir las mejores por ranking.
-    target_pool = max(num_target * 3, num_target + 4)
+    pool_target = max(num_target * 4, num_target + 8)
 
+    # ---------------------- Recolección ---------------------- #
     for source in sources:
-        if len(candidates) >= target_pool:
+        if len(video_candidates) >= pool_target:
             break
         log.info(f"[bold]Fuente:[/] {source.name}")
         try:
@@ -148,7 +156,7 @@ def run() -> int:
         log.info(f"  {len(urls)} enlaces candidatos")
 
         for url in urls:
-            if len(candidates) >= target_pool:
+            if len(video_candidates) >= pool_target:
                 break
             try:
                 article = scraper.fetch_article(url, source, topic)
@@ -158,109 +166,132 @@ def run() -> int:
             if article is None:
                 continue
 
-            # Sin video → descartar (si require_video)
-            if require_video and not (article.video_url or article.video_embed_url):
-                discarded_no_video += 1
+            # Necesitamos al menos video o imagen para un slide decente
+            if article.media_type == "none":
+                discarded_no_media += 1
                 continue
 
-            # Dedup en BD
             if db.is_duplicate(article):
                 skipped_duplicates += 1
-                log.debug(f"  Repetida (BD), se salta: {article.title_original[:60]}")
                 continue
-            # Dedup dentro de esta misma ejecución
             key = article.canonical_url or article.article_url
             if key in seen_in_run:
                 skipped_duplicates += 1
                 continue
             seen_in_run.add(key)
 
-            # Puntuación
-            ranker.score(
-                article,
-                trusted=source.trusted,
-                is_duplicate=False,
-                published_dt=getattr(article, "_published_dt", None),
-            )
+            ranker.score(article, trusted=source.trusted, is_duplicate=False,
+                         published_dt=getattr(article, "_published_dt", None))
             if not ranker.passes(article):
-                log.debug(f"  Puntuación baja ({article.score}): {article.title_original[:50]}")
                 continue
 
-            candidates.append(article)
-            log.info(f"  [green]✓[/] candidata (score {article.score}): "
-                     f"{article.title_original[:70]}")
+            if article.media_type == "video":
+                video_candidates.append(article)
+                log.info(f"  [green]✓ VIDEO[/] (score {article.score}): "
+                         f"{article.title_original[:64]}")
+            else:
+                image_candidates.append(article)
+                log.info(f"  [cyan]✓ imagen[/] (score {article.score}): "
+                         f"{article.title_original[:64]}")
 
     scraper.close()
 
     # ---------------------- Selección ---------------------- #
-    best = Ranker.sort_best(candidates)[:num_target]
+    best_video = Ranker.sort_best(video_candidates)
+    selected = best_video[:num_target]
+    if len(selected) < num_target and fallback_to_image:
+        need = num_target - len(selected)
+        fillers = Ranker.sort_best(image_candidates)[:need]
+        if fillers:
+            log.info(f"[yellow]Solo {len(selected)} con video; completando con "
+                     f"{len(fillers)} de imagen de alta calidad.[/]")
+        selected += fillers
 
     # ---------------------- Traducción + export ---------------------- #
     run_dir = exporter.make_run_dir()
     final: list[Article] = []
+    items: list[dict] = []
+    embed_blocked = with_video = with_image = 0
 
-    for i, article in enumerate(best, start=1):
-        # Traducir título y resumen al idioma destino
+    for i, article in enumerate(selected, start=1):
         src_lang = article.language_original
-        article.title_es = translator.translate(article.title_original, src_lang) \
-            if lang.startswith("es") else article.title_original
-        article.summary_es = translator.translate(article.summary_original, src_lang) \
-            if lang.startswith("es") else article.summary_original
-        article.carousel_text = exporter._build_carousel_text(article)
+        if lang.startswith("es"):
+            article.title_es = translator.translate(article.title_original, src_lang)
+            article.summary_es = translator.translate(article.summary_original, src_lang)
+        else:
+            article.title_es = article.title_original
+            article.summary_es = article.summary_original
+        article.short_headline_es = _short_headline(article.title_es or article.title_original)
+        article.short_caption_es = _short_caption(article.summary_es or article.summary_original)
 
         article.run_id = run_id
         article.status = "selected"
-
-        # Guardar en BD
         try:
             db.insert_article(article)
         except Exception as exc:
             log.warning(f"No se pudo guardar en BD: {exc}")
 
-        # Exportar carpeta
-        folder = exporter.export_article(run_dir, i, article)
+        item = exporter.export_article(run_dir, i, article)
         article.status = "exported"
         final.append(article)
-        log.info(f"[green]Exportada[/] noticia_{i:02d} -> {folder}")
+        items.append(item)
 
-    found = len(final)
-    db.finish_run(run_id, found, discarded_no_video, skipped_duplicates, str(run_dir))
+        if article.media_type == "video":
+            with_video += 1
+        else:
+            with_image += 1
+        if article.embed_status == "blocked":
+            embed_blocked += 1
+
+        log.info(f"[green]Exportada[/] noticia_{i:02d} "
+                 f"[{article.media_type}/{article.embed_status}] -> {item.get('folder')}")
+
+    renderer.close()
+
+    stats = {
+        "requested": num_target, "found": len(final),
+        "with_video": with_video, "with_image": with_image,
+        "embed_blocked": embed_blocked, "discarded_no_media": discarded_no_media,
+        "skipped_duplicates": skipped_duplicates,
+    }
+    exporter.finalize_run(run_dir, run_id, topic, items, stats)
+    db.finish_run(run_id, len(final), discarded_no_media, skipped_duplicates, str(run_dir))
     db.close()
 
-    # ---------------------- Resumen ---------------------- #
-    print_summary(topic, run_dir, found, num_target, discarded_no_video,
-                  skipped_duplicates, final, log)
+    print_summary(topic, run_dir, stats, final, log)
     return 0
 
 
 # --------------------------------------------------------------------------- #
-def print_summary(topic, run_dir, found, target, discarded_no_video,
-                  skipped_duplicates, final, log) -> None:
+def print_summary(topic, run_dir, stats, final, log) -> None:
     log.info("")
     log.info("[bold green]==================== RESUMEN ====================[/]")
-    log.info(f"Carpeta creada:               {run_dir}")
-    log.info(f"Noticias generadas:           {found} / {target}")
-    log.info(f"Descartadas por no tener video: {discarded_no_video}")
-    log.info(f"Repetidas saltadas:           {skipped_duplicates}")
-    if found < target:
-        log.info(f"[yellow]Faltaron {target - found} noticias "
-                 f"(se agotaron las fuentes/candidatas).[/]")
+    log.info(f"Carpeta creada:                 {run_dir}")
+    log.info(f"Galería:                        {run_dir / 'index.html'}")
+    log.info(f"Noticias generadas:             {stats['found']} / {stats['requested']}")
+    log.info(f"  · con video:                  {stats['with_video']}")
+    log.info(f"  · con imagen (fallback):      {stats['with_image']}")
+    log.info(f"Embeds bloqueados (poster usado): {stats['embed_blocked']}")
+    log.info(f"Descartadas sin media:          {stats['discarded_no_media']}")
+    log.info(f"Repetidas saltadas:             {stats['skipped_duplicates']}")
+    if stats['found'] < stats['requested']:
+        log.info(f"[yellow]Faltaron {stats['requested'] - stats['found']} noticias.[/]")
 
     if _console and final:
         table = Table(title="Noticias finales", show_lines=False)
         table.add_column("#", justify="right", style="cyan")
-        table.add_column("Título (ES)", style="white", overflow="fold")
+        table.add_column("Titular (ES)", style="white", overflow="fold")
         table.add_column("Fuente", style="green")
+        table.add_column("Media", style="magenta")
+        table.add_column("Embed", style="yellow")
         table.add_column("Score", justify="right")
-        table.add_column("Video", style="magenta")
+        table.add_column("slide.png", justify="center")
         for i, a in enumerate(final, start=1):
-            table.add_row(str(i), (a.title_es or a.title_original)[:70],
-                          a.source_name, str(a.score), a.video_type or "-")
+            table.add_row(str(i),
+                          (a.short_headline_es or a.title_es or a.title_original)[:60],
+                          a.source_name, a.media_type, a.embed_status, str(a.score),
+                          "✓" if a.local_slide_path else "—")
         _console.print(table)
-    else:
-        for i, a in enumerate(final, start=1):
-            log.info(f"  {i:02d}. {a.title_es or a.title_original[:70]} "
-                     f"[{a.source_name}] score={a.score}")
 
     log.info("")
     log.info("[bold]Rutas de cada carpeta:[/]")

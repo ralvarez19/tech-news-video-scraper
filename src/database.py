@@ -51,6 +51,8 @@ CREATE TABLE IF NOT EXISTS articles (
     title_es          TEXT,
     summary_original  TEXT,
     summary_es        TEXT,
+    short_headline_es TEXT,
+    short_caption_es  TEXT,
     language_original TEXT,
     source_name       TEXT,
     source_url        TEXT,
@@ -59,6 +61,14 @@ CREATE TABLE IF NOT EXISTS articles (
     video_url         TEXT,
     video_embed_url   TEXT,
     video_type        TEXT,
+    embed_status      TEXT,
+    media_type        TEXT,
+    hero_image_url    TEXT,
+    video_poster_url  TEXT,
+    local_slide_path  TEXT,
+    local_media_path  TEXT,
+    region            TEXT,
+    country           TEXT,
     published_at      TEXT,
     scraped_at        TEXT,
     content_hash      TEXT,
@@ -88,6 +98,26 @@ class Database:
     # ------------------------------------------------------------------ #
     def _create_schema(self) -> None:
         self.conn.executescript(SCHEMA)
+        self.conn.commit()
+        self._migrate()
+
+    def _migrate(self) -> None:
+        """Añade columnas nuevas a bases de datos antiguas sin perder datos."""
+        cur = self.conn.execute("PRAGMA table_info(articles)")
+        existing = {row[1] for row in cur.fetchall()}
+        wanted = {
+            "short_headline_es": "TEXT", "short_caption_es": "TEXT",
+            "embed_status": "TEXT", "media_type": "TEXT",
+            "hero_image_url": "TEXT", "video_poster_url": "TEXT",
+            "local_slide_path": "TEXT", "local_media_path": "TEXT",
+            "region": "TEXT", "country": "TEXT",
+        }
+        for col, ctype in wanted.items():
+            if col not in existing:
+                try:
+                    self.conn.execute(f"ALTER TABLE articles ADD COLUMN {col} {ctype}")
+                except Exception:
+                    pass
         self.conn.commit()
 
     def close(self) -> None:

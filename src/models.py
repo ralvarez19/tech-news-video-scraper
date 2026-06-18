@@ -61,6 +61,10 @@ class Article:
     summary_es: str = ""
     language_original: str = "und"
 
+    # Textos cortos para la pieza visual
+    short_headline_es: str = ""   # titular corto en MAYÚSCULAS para el slide
+    short_caption_es: str = ""    # descripción de 2-4 líneas para el slide
+
     # Fuente / enlaces
     source_name: str = ""
     source_url: str = ""        # URL de la fuente (listado/portada)
@@ -71,9 +75,18 @@ class Article:
     video_url: Optional[str] = None
     video_embed_url: Optional[str] = None
     video_type: Optional[str] = None
+    embed_status: str = "none"  # ok | blocked | none  (¿se puede embeber el video?)
+
+    # Imagen / media
+    media_type: str = "none"            # video | image | none
+    hero_image_url: Optional[str] = None
+    video_poster_url: Optional[str] = None
+    local_slide_path: Optional[str] = None   # ruta a slide.png
+    local_media_path: Optional[str] = None   # ruta a hero_image.jpg / video_poster.jpg
 
     # Metadatos
     region: str = "Global"
+    country: str = ""
     published_at: Optional[str] = None   # ISO 8601
     scraped_at: Optional[str] = None     # ISO 8601
     content_hash: str = ""
@@ -91,10 +104,12 @@ class Article:
     # ---- Mapeo a/desde la tabla articles -------------------------------- #
     DB_COLUMNS = [
         "run_id", "topic", "title_original", "title_es", "summary_original",
-        "summary_es", "language_original", "source_name", "source_url",
-        "article_url", "canonical_url", "video_url", "video_embed_url",
-        "video_type", "published_at", "scraped_at", "content_hash", "status",
-        "output_folder",
+        "summary_es", "short_headline_es", "short_caption_es",
+        "language_original", "source_name", "source_url", "article_url",
+        "canonical_url", "video_url", "video_embed_url", "video_type",
+        "embed_status", "media_type", "hero_image_url", "video_poster_url",
+        "local_slide_path", "local_media_path", "region", "country",
+        "published_at", "scraped_at", "content_hash", "status", "output_folder",
     ]
 
     def to_db_row(self) -> dict:

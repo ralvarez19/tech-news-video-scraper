@@ -28,6 +28,8 @@ from bs4 import BeautifulSoup
 
 from .models import Article, Source, VideoInfo
 from .video_detector import detect_video
+from .media_extractor import (extract_hero_image, extract_video_poster,
+                              youtube_thumbnail)
 from .translator import detect_language
 from .utils import (absolutize, canonical_url, get_logger, iso, now_utc,
                     parse_date, age_in_days)
@@ -253,6 +255,20 @@ class Scraper:
             rendered = self._get_rendered(url)
             if rendered:
                 video = detect_video(rendered, url, self.accept_types)
+                if rendered:
+                    soup = BeautifulSoup(rendered, "html.parser")
+
+        # Media: imagen principal (hero) y poster del video
+        hero_image_url = extract_hero_image(soup, url)
+        video_poster_url = None
+        if video.found:
+            video_poster_url = (extract_video_poster(soup, url)
+                                or youtube_thumbnail(video.video_url or ""))
+            media_type = "video"
+        elif hero_image_url:
+            media_type = "image"
+        else:
+            media_type = "none"
 
         lang = detect_language(f"{title}. {summary}")
 
@@ -268,10 +284,14 @@ class Scraper:
             video_url=video.video_url,
             video_embed_url=video.video_embed_url,
             video_type=video.video_type,
+            media_type=media_type,
+            hero_image_url=hero_image_url,
+            video_poster_url=video_poster_url,
             region=source.region,
+            country=source.region,
             published_at=iso(published),
             scraped_at=iso(now_utc()),
-            status="candidate" if video.found else "no_video",
+            status="candidate" if video.found else ("image" if media_type == "image" else "no_video"),
         )
         if not video.related:
             setattr(article, "_video_unrelated", True)

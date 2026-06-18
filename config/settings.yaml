@@ -39,6 +39,9 @@ video:
     - iframe           # iframe genérico de reproductor
   # No se descargan videos de terceros: se guarda el enlace/embed público.
   download_video: false          # por defecto NO descargar (respeto a copyright/DRM)
+  check_embeddable: true         # comprobar X-Frame-Options/CSP antes de embeber
+  fallback_to_image: true        # si no se completan N con video, rellenar con imagen de calidad
+  download_media: true           # descargar hero_image.jpg / video_poster.jpg para el slide
 
 # --- Traducción ---
 translation:
@@ -58,6 +61,8 @@ ranking:
     keyword_ai: 5        # +5 menciona IA / ML / modelos / robots / chips...
     recent: 4            # +4 reciente
     has_clear_video: 4   # +4 tiene video claro
+    has_usable_media: 2  # +2 tiene imagen o video usable para el slide
+    good_headline: 2     # +2 titular de buena longitud
     trusted_source: 3    # +3 fuente confiable
     global_impact: 3     # +3 impacto global
     repeated: -10        # -10 repetida (penalización fuerte)

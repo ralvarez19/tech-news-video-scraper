@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<!--
+  embed_template.html — reproductor del video con descripción arriba.
+  Caso A (embed_status == ok): muestra el reproductor embebido.
+  Caso B (blocked): muestra el poster + botón "Ver en la fuente" (no se puede
+  embeber por restricciones del sitio; no fallamos).
+  Variables: title, caption, embed_status, video_embed_url, video_url,
+             video_type, poster_data_uri, article_url, source_name.
+-->
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }}</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{background:#0a0e1a;color:#fff;font-family:'Segoe UI',system-ui,sans-serif}
+    .wrap{max-width:1000px;margin:0 auto;padding:24px}
+    .desc{font-size:22px;line-height:1.4;padding:18px 22px;background:#121a33;
+          border-radius:14px;margin-bottom:18px}
+    .desc small{color:#9fb0d0;display:block;margin-top:8px;font-size:16px}
+    .v{position:relative;width:100%;padding-top:56.25%;background:#000;
+       border-radius:16px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+    .v>iframe,.v>video{position:absolute;inset:0;width:100%;height:100%;border:0}
+    .poster{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+    .blocked{position:absolute;inset:0;display:flex;flex-direction:column;
+             align-items:center;justify-content:center;text-align:center;
+             background:rgba(8,11,22,.55)}
+    .btn{display:inline-block;margin-top:16px;background:linear-gradient(135deg,#7c3aed,#4f46e5);
+         color:#fff;text-decoration:none;font-weight:700;font-size:20px;
+         padding:14px 28px;border-radius:999px}
+    .note{margin-top:10px;color:#cbd5e1;font-size:15px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="desc">
+      {{ caption or title }}
+      <small>{{ source_name }}{% if video_type %} · video: {{ video_type }}{% endif %}</small>
+    </div>
+    <div class="v">
+      {% if embed_status == 'ok' and video_type == 'html5' and video_url %}
+        <video controls preload="metadata" {% if poster_data_uri %}poster="{{ poster_data_uri }}"{% endif %} src="{{ video_url }}"></video>
+      {% elif embed_status == 'ok' and video_embed_url %}
+        <iframe src="{{ video_embed_url }}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe>
+      {% else %}
+        {% if poster_data_uri %}<img class="poster" src="{{ poster_data_uri }}" alt="poster">{% endif %}
+        <div class="blocked">
+          <div>Este video no se puede embeber aquí{% if embed_status and embed_status != 'none' %} ({{ embed_status }}){% endif %}.</div>
+          <a class="btn" href="{{ video_url or article_url }}" target="_blank" rel="noopener">▶ Ver video en la fuente</a>
+          <div class="note">Se respetan las restricciones del sitio (sin saltar paywalls/DRM).</div>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</body>
+</html>

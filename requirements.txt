@@ -24,4 +24,7 @@ rich>=13.7.0
 # --- Traducción (fallback gratuito; opcional pero recomendado) ---
 deep-translator>=1.11.4
 
+# --- Generación del slide.png (fallback de render y procesado de imágenes) ---
+pillow>=10.2.0
+
 # Nota: sqlite3, hashlib y urllib.parse forman parte de la librería estándar de Python.

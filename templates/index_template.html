@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<!--
+  index_template.html — galería del run. Muestra las noticias con su slide.png,
+  título, fuente y enlaces (artículo, video, embed).
+  Variables: run_id, topic, generated_at, items[]
+    item: { folder, slide_rel, title, source_name, date, media_type,
+            embed_status, article_url, video_url, has_embed, embed_rel }
+-->
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Carrusel — {{ topic }}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Inter',system-ui,sans-serif;background:#0a0e1a;color:#eef2ff;padding:40px}
+    header{max-width:1200px;margin:0 auto 32px}
+    h1{font-size:34px;font-weight:800}
+    .sub{color:#9fb0d0;margin-top:8px;font-size:16px}
+    .grid{max-width:1200px;margin:0 auto;display:grid;
+          grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:26px}
+    .card{background:#121a33;border:1px solid #22305c;border-radius:18px;overflow:hidden;
+          display:flex;flex-direction:column}
+    .thumb{aspect-ratio:4/5;background:#000;overflow:hidden}
+    .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+    .body{padding:18px;display:flex;flex-direction:column;gap:10px;flex:1}
+    .title{font-size:18px;font-weight:700;line-height:1.3}
+    .meta{color:#9fb0d0;font-size:14px;display:flex;justify-content:space-between}
+    .tags{display:flex;gap:8px;flex-wrap:wrap}
+    .tag{font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px}
+    .tag.video{background:rgba(124,58,237,.2);color:#c4b5fd}
+    .tag.image{background:rgba(29,78,216,.2);color:#93c5fd}
+    .tag.blocked{background:rgba(220,38,38,.18);color:#fca5a5}
+    .links{display:flex;gap:10px;margin-top:auto;flex-wrap:wrap}
+    .links a{font-size:14px;font-weight:600;text-decoration:none;color:#fff;
+             background:#1e2a52;padding:9px 14px;border-radius:10px}
+    .links a.primary{background:linear-gradient(135deg,#7c3aed,#4f46e5)}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Carrusel de noticias — {{ topic }}</h1>
+    <div class="sub">Run {{ run_id }} · generado {{ generated_at }} · {{ items|length }} noticias</div>
+  </header>
+  <div class="grid">
+    {% for it in items %}
+    <div class="card">
+      <div class="thumb"><img src="{{ it.slide_rel }}" alt="slide"></div>
+      <div class="body">
+        <div class="tags">
+          <span class="tag {{ it.media_type }}">{{ it.media_type|upper }}</span>
+          {% if it.embed_status == 'blocked' %}<span class="tag blocked">EMBED BLOQUEADO</span>{% endif %}
+        </div>
+        <div class="title">{{ it.title }}</div>
+        <div class="meta"><span>{{ it.source_name }}</span><span>{{ it.date }}</span></div>
+        <div class="links">
+          <a class="primary" href="{{ it.article_url }}" target="_blank" rel="noopener">Artículo</a>
+          {% if it.video_url %}<a href="{{ it.video_url }}" target="_blank" rel="noopener">Video</a>{% endif %}
+          {% if it.has_embed %}<a href="{{ it.embed_rel }}" target="_blank">Embed</a>{% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</body>
+</html>

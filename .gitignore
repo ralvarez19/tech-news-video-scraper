@@ -1,0 +1,20 @@
+# Entornos
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Datos y salidas generadas
+data/news.db
+data/news.db-wal
+data/news.db-shm
+output/*/
+
+# Playwright
+.cache/
+
+# IDE / SO
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

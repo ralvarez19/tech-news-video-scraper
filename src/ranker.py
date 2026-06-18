@@ -72,6 +72,8 @@ class Ranker:
             "keyword_ai": w.get("keyword_ai", 5),
             "recent": w.get("recent", 4),
             "has_clear_video": w.get("has_clear_video", 4),
+            "has_usable_media": w.get("has_usable_media", 2),
+            "good_headline": w.get("good_headline", 2),
             "trusted_source": w.get("trusted_source", 3),
             "global_impact": w.get("global_impact", 3),
             "repeated": w.get("repeated", -10),
@@ -113,6 +115,17 @@ class Ranker:
                 breakdown["has_clear_video"] = self.w["has_clear_video"]
             else:
                 breakdown["has_clear_video"] = max(1, self.w["has_clear_video"] // 2)
+
+        # + media usable (video o imagen sirven para el slide)
+        if article.media_type in ("video", "image") or article.hero_image_url:
+            breakdown["has_usable_media"] = self.w["has_usable_media"]
+
+        # + buen titular (longitud adecuada, no vacío, no excesivamente largo)
+        headline = article.title_original or article.title_es
+        if headline:
+            n = len(headline)
+            if 25 <= n <= 120 and not headline.endswith("..."):
+                breakdown["good_headline"] = self.w["good_headline"]
 
         # + fuente confiable
         if trusted:

@@ -1,18 +1,23 @@
-"""ranker.py — sistema de puntuación para elegir las mejores noticias.
+"""ranker.py — puntuación estricta para elegir las mejores noticias Tech/IA.
 
-Puntúa cada noticia según:
-  +  menciona IA / ML / modelos / robots / chips / avances científicos
-  +  es reciente
-  +  tiene video claro
-  +  es de fuente confiable
-  +  tiene impacto global
-  -  es repetida
-  -  es publicidad disfrazada
-  -  no tiene fecha clara
-  -  el video no está directamente relacionado
+IMPORTANTE: ninguna noticia puede llegar al top si no pasó el filtro temático
+(`is_valid_tech_ai_news`). Eso se marca con `article._topic_valid` y se respeta
+en `passes()`. El filtro se aplica en app.py ANTES del ranking.
 
-Los pesos son configurables en settings.yaml -> ranking.weights.
-Devuelve la noticia con .score y .score_breakdown rellenados.
+Puntos (configurables en settings.yaml -> ranking.weights):
+  +5 IA / ML / modelos / robots / chips
+  +4 tecnología futurista
+  +3 video o imagen usable
+  +3 video claro
+  +3 fuente tecnológica confiable
+  +2 reciente
+  +2 impacto global
+  +2 dispositivos / avances visuales
+  -10 política general
+  -8  economía general sin tecnología
+  -10 crimen / farándula / deportes
+  -5  título ambiguo sin tema tech
+  -10 repetida
 """
 from __future__ import annotations
 
@@ -24,43 +29,60 @@ from .utils import age_in_days, get_logger
 log = get_logger()
 
 
-# Palabras clave de alto valor (IA / tecnología / ciencia aplicada)
 _AI_KEYWORDS = [
     r"\bia\b", "inteligencia artificial", "artificial intelligence",
     "machine learning", "aprendizaje autom", "deep learning", "redes neuronales",
     "neural network", "modelo de lenguaje", "language model", r"\bllm\b",
     "chatgpt", "openai", "anthropic", "claude", "gemini", "deepmind",
-    "robot", "robótica", "robotics", "chip", "semiconductor", "gpu", "nvidia",
-    "cuántic", "quantum", "algoritmo", "algorithm", "automatiz", "automation",
-    "biotec", "nanotec", "space", "espacial", "satélite", "fusion",
-    "breakthrough", "avance", "innovación", "innovation", "research", "científic",
+    "chip", "semiconductor", "gpu", "nvidia", "algoritmo", "algorithm",
 ]
 
-# Señales de impacto global
+_FUTURISTIC_KEYWORDS = [
+    "cuántic", "quantum", "humanoid", "humanoide", "agi",
+    "autónom", "autonomous", "exoesqueleto", "holograma", "metaverso",
+    "biotec", "nanotec", "fusion nuclear", "neuralink", "brain-computer",
+    "interfaz cerebro", "drone", "dron", "satélite", "space", "espacial",
+]
+
+_VISUAL_DEVICE_KEYWORDS = [
+    "robot", "device", "dispositivo", "gadget", "wearable", "smartphone",
+    "gafas", "glasses", "headset", "realidad virtual", "realidad aumentada",
+    r"\bvr\b", r"\bar\b", "prototip", "unveil", "presenta", "lanza", "muestra",
+    "demo", "prototype",
+]
+
 _GLOBAL_KEYWORDS = [
     "global", "world", "mundial", "international", "internacional", "europe",
-    "europa", "china", "estados unidos", "united states", "eu ", "g7", "onu",
-    "billion", "millones", "millones de usuarios", "worldwide",
+    "europa", "china", "estados unidos", "united states", "worldwide",
+    "billion", "millones de usuarios",
 ]
 
-# Señales de publicidad disfrazada / contenido promocional
-_AD_SIGNALS = [
-    "sponsored", "patrocinado", "publirreportaje", "advertorial", "promo code",
-    "código de descuento", "discount code", "buy now", "compra ya", "oferta",
-    "deal of the day", "affiliate", "review:", "unboxing", "% off", "descuento",
-    "best deals", "shop now",
+# Penalizaciones temáticas (refuerzan al filtro; suelen descartarse antes)
+_POLITICAL = ["elecciones", "presidente", "gobierno", "congreso",
+              "partido polít", "campaña electoral", "escándalo polít"]
+_ECONOMY = ["bolsa de valores", "inflación", "mercados bursátiles",
+            "acciones de la bolsa", "pib", "tipos de interés"]
+_TABLOID = ["crimen", "asesinato", "fútbol", "deporte", "farándula",
+            "celebridad", "religión", "guerra", "conflicto armado"]
+
+_TECH_ANY = _AI_KEYWORDS + _FUTURISTIC_KEYWORDS + _VISUAL_DEVICE_KEYWORDS + [
+    "tecnología", "tech", "software", "hardware", "ciberseguridad",
+    "cybersecurity", "startup", "innovación", "app", "data center",
 ]
 
 
-def _count_matches(text: str, patterns: list[str]) -> int:
+def _has(text: str, patterns: list[str]) -> bool:
+    if not text:
+        return False
+    low = text.lower()
+    return any(re.search(p, low) for p in patterns)
+
+
+def _count(text: str, patterns: list[str]) -> int:
     if not text:
         return 0
     low = text.lower()
-    n = 0
-    for p in patterns:
-        if re.search(p, low):
-            n += 1
-    return n
+    return sum(1 for p in patterns if re.search(p, low))
 
 
 class Ranker:
@@ -70,18 +92,20 @@ class Ranker:
         w = rk.get("weights", {}) or {}
         self.w = {
             "keyword_ai": w.get("keyword_ai", 5),
-            "recent": w.get("recent", 4),
-            "has_clear_video": w.get("has_clear_video", 4),
-            "has_usable_media": w.get("has_usable_media", 2),
-            "good_headline": w.get("good_headline", 2),
+            "futuristic_tech": w.get("futuristic_tech", 4),
+            "has_usable_media": w.get("has_usable_media", 3),
+            "has_clear_video": w.get("has_clear_video", 3),
             "trusted_source": w.get("trusted_source", 3),
-            "global_impact": w.get("global_impact", 3),
+            "recent": w.get("recent", 2),
+            "global_impact": w.get("global_impact", 2),
+            "visual_devices": w.get("visual_devices", 2),
+            "political": w.get("political", -10),
+            "economy_no_tech": w.get("economy_no_tech", -8),
+            "tabloid_sports_crime": w.get("tabloid_sports_crime", -10),
+            "ambiguous_no_tech": w.get("ambiguous_no_tech", -5),
             "repeated": w.get("repeated", -10),
-            "disguised_ad": w.get("disguised_ad", -6),
-            "no_clear_date": w.get("no_clear_date", -3),
-            "unrelated_video": w.get("unrelated_video", -4),
         }
-        self.max_age_recent_days = 7  # "reciente" = última semana
+        self.max_age_recent_days = 7
 
     def score(self, article: Article, *, trusted: bool, is_duplicate: bool,
               published_dt=None) -> Article:
@@ -91,23 +115,19 @@ class Ranker:
             article.summary_original, article.summary_es,
         ]))
 
-        # + IA / tecnología (se escala suavemente según nº de coincidencias)
-        ai_hits = _count_matches(text, _AI_KEYWORDS)
-        if ai_hits:
-            pts = min(self.w["keyword_ai"], 1 + ai_hits) if self.w["keyword_ai"] > 0 else 0
-            pts = self.w["keyword_ai"] if ai_hits >= 2 else max(1, self.w["keyword_ai"] // 2)
-            breakdown["keyword_ai"] = pts
+        # + IA
+        if _has(text, _AI_KEYWORDS):
+            breakdown["keyword_ai"] = self.w["keyword_ai"]
+        # + tecnología futurista
+        if _has(text, _FUTURISTIC_KEYWORDS):
+            breakdown["futuristic_tech"] = self.w["futuristic_tech"]
+        # + dispositivos / avances visuales
+        if _has(text, _VISUAL_DEVICE_KEYWORDS):
+            breakdown["visual_devices"] = self.w["visual_devices"]
 
-        # + reciente
-        age = age_in_days(published_dt)
-        if age is not None:
-            if age <= self.max_age_recent_days:
-                breakdown["recent"] = self.w["recent"]
-            elif age <= 21:
-                breakdown["recent"] = max(1, self.w["recent"] // 2)
-        else:
-            breakdown["no_clear_date"] = self.w["no_clear_date"]
-
+        # + media usable
+        if article.media_type in ("video", "image") or article.hero_image_url:
+            breakdown["has_usable_media"] = self.w["has_usable_media"]
         # + video claro
         if article.video_url or article.video_embed_url:
             if article.video_type in ("youtube", "vimeo", "dailymotion",
@@ -116,46 +136,45 @@ class Ranker:
             else:
                 breakdown["has_clear_video"] = max(1, self.w["has_clear_video"] // 2)
 
-        # + media usable (video o imagen sirven para el slide)
-        if article.media_type in ("video", "image") or article.hero_image_url:
-            breakdown["has_usable_media"] = self.w["has_usable_media"]
-
-        # + buen titular (longitud adecuada, no vacío, no excesivamente largo)
-        headline = article.title_original or article.title_es
-        if headline:
-            n = len(headline)
-            if 25 <= n <= 120 and not headline.endswith("..."):
-                breakdown["good_headline"] = self.w["good_headline"]
-
         # + fuente confiable
         if trusted:
             breakdown["trusted_source"] = self.w["trusted_source"]
-
+        # + reciente
+        age = age_in_days(published_dt)
+        if age is not None and age <= self.max_age_recent_days:
+            breakdown["recent"] = self.w["recent"]
+        elif age is not None and age <= 21:
+            breakdown["recent"] = max(1, self.w["recent"] // 2)
         # + impacto global
-        if _count_matches(text, _GLOBAL_KEYWORDS):
+        if _has(text, _GLOBAL_KEYWORDS):
             breakdown["global_impact"] = self.w["global_impact"]
+
+        # - penalizaciones temáticas
+        if _has(text, _POLITICAL):
+            breakdown["political"] = self.w["political"]
+        if _has(text, _ECONOMY) and not _has(text, _TECH_ANY):
+            breakdown["economy_no_tech"] = self.w["economy_no_tech"]
+        if _has(text, _TABLOID):
+            breakdown["tabloid_sports_crime"] = self.w["tabloid_sports_crime"]
+        if not _has(text, _TECH_ANY):
+            breakdown["ambiguous_no_tech"] = self.w["ambiguous_no_tech"]
 
         # - repetida
         if is_duplicate:
             breakdown["repeated"] = self.w["repeated"]
 
-        # - publicidad disfrazada
-        if _count_matches(text, _AD_SIGNALS):
-            breakdown["disguised_ad"] = self.w["disguised_ad"]
-
-        # - video no relacionado
-        # (related=False lo marca el detector; aquí lo reflejamos si viene en metadata)
-        if getattr(article, "_video_unrelated", False):
-            breakdown["unrelated_video"] = self.w["unrelated_video"]
-
-        total = sum(breakdown.values())
-        article.score = total
+        article.score = sum(breakdown.values())
         article.score_breakdown = breakdown
         return article
 
     def passes(self, article: Article) -> bool:
+        # GATE DURO: si no pasó el filtro temático, jamás entra al top.
+        if getattr(article, "_topic_valid", True) is False:
+            return False
         return article.score >= self.min_score
 
     @staticmethod
     def sort_best(articles: list[Article]) -> list[Article]:
-        return sorted(articles, key=lambda a: a.score, reverse=True)
+        # Seguridad extra: excluir cualquiera marcado como no válido temáticamente.
+        valid = [a for a in articles if getattr(a, "_topic_valid", True) is not False]
+        return sorted(valid, key=lambda a: a.score, reverse=True)

@@ -24,12 +24,48 @@ una **pieza visual final `slide.png` (1080×1350)** lista para publicar como
 - **Comprueba si el video es embebible** (cabeceras `X-Frame-Options`/`CSP`). Si
   está bloqueado (caso B), **no falla**: guarda el enlace + `video_poster.jpg` y
   usa esa imagen en el slide, marcando `embed_status: blocked` y el motivo.
+- **Filtro temático DURO (Tech/IA)** antes del ranking y de guardar/exportar:
+  si no es tecnología/IA, **no entra**. Rechaza política general, economía,
+  deportes, crimen, farándula, etc. (acepta política/regulación **solo** si está
+  ligada a IA/tecnología, p. ej. regulación de IA o ley de chips).
 - **Traducción** modular al español (título, descripción, titular y caption cortos para el slide).
-- **Ranking** con puntuación para elegir las mejores noticias.
+- **Ranking** con puntuación para elegir las mejores noticias (con *gate*: nada
+  que no pase el filtro llega al top 5).
 - **Deduplicación** por `canonical_url`, `article_url` y hash de título.
 - Galería `index.html` + `summary.json` + `summary.txt` por ejecución.
+- **Envío automático a Telegram** de los 5 slides al finalizar (opcional, por `.env`).
 - Respeta `robots.txt`. **No** salta paywalls, captchas, logins ni DRM. Guarda
   enlaces/embeds de video de terceros (no descarga videos protegidos).
+
+## Filtro temático (Tech/IA)
+
+Implementado en `src/topic_filter.py` y configurable en `config/settings.yaml`
+bajo `topic_filter` (`enabled`, `min_topic_score`, `positive_keywords`,
+`negative_keywords`). Por cada noticia loguea la decisión:
+`[ACEPTADA TECH/IA]`, `[RECHAZADA NO TECH]` o `[RECHAZADA POLÍTICA]`. Las
+rechazadas no se guardan en SQLite ni generan slide.
+
+## Envío a Telegram
+
+1. Copia `.env.example` a `.env` y rellena tus datos:
+
+   ```env
+   TELEGRAM_ENABLED=true
+   TELEGRAM_BOT_TOKEN=tu_token_de_BotFather
+   TELEGRAM_CHAT_ID=tu_chat_id
+   TELEGRAM_SEND_AS_ALBUM=true
+   ```
+
+2. Al finalizar, el programa envía los `slide.png` generados. Si
+   `TELEGRAM_SEND_AS_ALBUM=true` usa `sendMediaGroup` (álbum); si falla, envía
+   uno por uno con `sendPhoto`. Cada slide lleva un caption con número, título,
+   fuente y enlace al artículo.
+
+   - Si faltan variables: `[TELEGRAM] No configurado. Se omite envío.`
+   - Si está desactivado: `[TELEGRAM] Desactivado por TELEGRAM_ENABLED=false`
+   - Si todo va bien: `[TELEGRAM] Slides enviados correctamente.`
+
+   El archivo `.env` **no** se sube al repositorio (está en `.gitignore`).
 
 ## Cómo se genera el `slide.png`
 
@@ -117,8 +153,10 @@ tech_news_video_scraper/
     ├── video_detector.py  # Detección de video
     ├── media_extractor.py # Hero image, poster, chequeo de embed, descargas
     ├── card_renderer.py   # Render del slide.png (Playwright + fallback Pillow)
+    ├── topic_filter.py    # Filtro DURO Tech/IA (antes de guardar/exportar)
+    ├── telegram_sender.py # Envío de los slides a Telegram (.env)
     ├── translator.py      # Traducción modular
-    ├── ranker.py          # Puntuación / selección
+    ├── ranker.py          # Puntuación / selección (con gate del filtro)
     ├── exporter.py        # Genera carpetas, slides, index/summary
     └── utils.py           # Hash, fechas, logging, URLs
 ```

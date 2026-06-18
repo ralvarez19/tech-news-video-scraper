@@ -29,6 +29,14 @@ from src.translator import Translator
 from src.ranker import Ranker
 from src.card_renderer import CardRenderer
 from src.exporter import Exporter
+from src.topic_filter import is_valid_tech_ai_news, log_decision
+from src.telegram_sender import send_run_to_telegram
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    pass
 
 try:
     from rich.table import Table
@@ -132,9 +140,14 @@ def run() -> int:
     renderer = CardRenderer(settings)
     exporter = Exporter(settings, renderer=renderer, session=scraper.session)
 
+    topic_cfg = settings.get("topic_filter", {})
+
     run_obj = Run(topic=topic, language=lang, requested=num_target)
     run_id = db.start_run(run_obj)
 
+    considered = 0
+    rejected_not_tech = 0
+    rejected_political = 0
     discarded_no_media = 0
     skipped_duplicates = 0
     video_candidates: list[Article] = []
@@ -164,6 +177,19 @@ def run() -> int:
                 log.debug(f"  Error procesando {url}: {exc}")
                 continue
             if article is None:
+                continue
+            considered += 1
+
+            # FILTRO TEMÁTICO DURO: si no es Tech/IA, no entra (ni BD ni export).
+            valid, reason, tscore = is_valid_tech_ai_news(article.to_dict(), topic_cfg)
+            log_decision(article.to_dict(), valid, reason, tscore)
+            article._topic_valid = valid          # gate para el ranker
+            article._topic_score = tscore
+            if not valid:
+                if reason == "political_general":
+                    rejected_political += 1
+                else:
+                    rejected_not_tech += 1
                 continue
 
             # Necesitamos al menos video o imagen para un slide decente
@@ -248,32 +274,55 @@ def run() -> int:
 
     renderer.close()
 
+    slides_generated = sum(1 for a in final if a.local_slide_path)
     stats = {
         "requested": num_target, "found": len(final),
+        "considered": considered,
+        "rejected_not_tech": rejected_not_tech,
+        "rejected_political": rejected_political,
         "with_video": with_video, "with_image": with_image,
         "embed_blocked": embed_blocked, "discarded_no_media": discarded_no_media,
         "skipped_duplicates": skipped_duplicates,
+        "slides_generated": slides_generated,
     }
     exporter.finalize_run(run_dir, run_id, topic, items, stats)
     db.finish_run(run_id, len(final), discarded_no_media, skipped_duplicates, str(run_dir))
     db.close()
+
+    # --- Envío a Telegram (opcional, controlado por .env) ---
+    telegram_status = send_run_to_telegram(run_dir, final)
+    stats["telegram"] = telegram_status
 
     print_summary(topic, run_dir, stats, final, log)
     return 0
 
 
 # --------------------------------------------------------------------------- #
+_TELEGRAM_MSG = {
+    "sent": "enviado correctamente",
+    "partial": "enviado parcialmente",
+    "error": "error al enviar",
+    "not_configured": "no configurado (revisa .env)",
+    "disabled": "desactivado (TELEGRAM_ENABLED=false)",
+    "no_slides": "sin slides para enviar",
+}
+
+
 def print_summary(topic, run_dir, stats, final, log) -> None:
+    tg = _TELEGRAM_MSG.get(stats.get("telegram", ""), stats.get("telegram", "—"))
     log.info("")
-    log.info("[bold green]==================== RESUMEN ====================[/]")
-    log.info(f"Carpeta creada:                 {run_dir}")
-    log.info(f"Galería:                        {run_dir / 'index.html'}")
-    log.info(f"Noticias generadas:             {stats['found']} / {stats['requested']}")
-    log.info(f"  · con video:                  {stats['with_video']}")
-    log.info(f"  · con imagen (fallback):      {stats['with_image']}")
-    log.info(f"Embeds bloqueados (poster usado): {stats['embed_blocked']}")
-    log.info(f"Descartadas sin media:          {stats['discarded_no_media']}")
-    log.info(f"Repetidas saltadas:             {stats['skipped_duplicates']}")
+    log.info("[bold green]==================== RESUMEN FINAL ====================[/]")
+    log.info(f"Noticias encontradas: {stats.get('considered', 0)}")
+    log.info(f"Rechazadas por no ser tecnología/IA: {stats.get('rejected_not_tech', 0)}")
+    log.info(f"Rechazadas por política/general: {stats.get('rejected_political', 0)}")
+    log.info(f"Repetidas: {stats.get('skipped_duplicates', 0)}")
+    log.info(f"Aceptadas finales: {stats['found']}")
+    log.info(f"  · con video: {stats['with_video']}  · con imagen: {stats['with_image']}"
+             f"  · embeds bloqueados: {stats['embed_blocked']}")
+    log.info(f"Slides generados: {stats.get('slides_generated', 0)}")
+    log.info(f"Telegram: {tg}")
+    log.info(f"Carpeta: {run_dir}")
+    log.info(f"Galería: {run_dir / 'index.html'}")
     if stats['found'] < stats['requested']:
         log.info(f"[yellow]Faltaron {stats['requested'] - stats['found']} noticias.[/]")
 

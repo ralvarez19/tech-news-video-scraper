@@ -5,7 +5,8 @@
 
 # --- Comportamiento por defecto cuando el usuario no escribe nada ---
 defaults:
-  topic: "tecnología, inteligencia artificial y avances tecnológicos"
+  # Tema enfocado en tecnología/IA (NO usar "latest news", que trae política).
+  topic: "inteligencia artificial tecnología avances tecnológicos robótica chips software innovación"
   num_news: 5            # cuántas noticias válidas queremos generar
   language: "es"         # idioma de salida (los textos finales se traducen a este idioma)
 
@@ -18,6 +19,104 @@ search:
   delay_between_requests: 1.0   # pausa (segundos) entre peticiones para ser respetuosos
   respect_robots_txt: true      # respetar robots.txt cuando sea posible
   user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) TechNewsVideoScraper/1.0 (+local research tool)"
+  # Términos enfocados (se usan para filtrar enlaces y como referencia de búsqueda).
+  query_terms_es: "inteligencia artificial tecnología avances tecnológicos robótica chips software innovación"
+  query_terms_en: "artificial intelligence technology robotics chips software innovation breakthrough"
+  # Combinaciones orientadas a noticias tech/IA con video (para fuentes de búsqueda).
+  query_combinations:
+    - "AI technology news video"
+    - "artificial intelligence breakthrough video"
+    - "robotics technology news video"
+    - "Samsung futuristic devices video"
+    - "OpenAI news video"
+    - "Nvidia AI chips news video"
+    - "Google AI technology news video"
+    - "robots innovation video"
+    - "smart devices technology video"
+    - "new technology inventions video"
+
+# --- Filtro temático OBLIGATORIO (Tech/IA). Ver src/topic_filter.py ---
+topic_filter:
+  enabled: true
+  min_topic_score: 2
+  positive_keywords:
+    - inteligencia artificial
+    - ia
+    - ai
+    - artificial intelligence
+    - machine learning
+    - deep learning
+    - modelo de ia
+    - chatbot
+    - robot
+    - robótica
+    - tecnología
+    - tech
+    - software
+    - hardware
+    - chip
+    - semiconductor
+    - nvidia
+    - openai
+    - google ai
+    - gemini
+    - anthropic
+    - claude
+    - microsoft
+    - apple intelligence
+    - samsung
+    - tesla
+    - spacex
+    - computación cuántica
+    - quantum computing
+    - ciberseguridad
+    - cybersecurity
+    - realidad virtual
+    - realidad aumentada
+    - startup tecnológica
+    - automatización
+    - dispositivo inteligente
+    - wearable
+    - smartphone
+    - app
+    - data center
+    - gpu
+    - robot humanoide
+    - innovación tecnológica
+  negative_keywords:
+    - elecciones
+    - presidente
+    - gobierno
+    - congreso
+    - partido político
+    - campaña electoral
+    - crimen
+    - asesinato
+    - guerra
+    - conflicto armado
+    - deporte
+    - fútbol
+    - farándula
+    - celebridad
+    - religión
+    - escándalo político
+    - bolsa de valores
+    - inflación
+    # Equivalentes en inglés (muchas fuentes están en inglés antes de traducir)
+    - election
+    - president
+    - government
+    - congress
+    - political party
+    - war
+    - football
+    - soccer
+    - sports
+    - celebrity
+    - crime
+    - murder
+    - stock market
+    - inflation
 
 # --- Playwright (renderizado dinámico) ---
 playwright:
@@ -58,17 +157,20 @@ translation:
 ranking:
   min_score: 1           # puntuación mínima para que una noticia sea aceptada
   weights:
-    keyword_ai: 5        # +5 menciona IA / ML / modelos / robots / chips...
-    recent: 4            # +4 reciente
-    has_clear_video: 4   # +4 tiene video claro
-    has_usable_media: 2  # +2 tiene imagen o video usable para el slide
-    good_headline: 2     # +2 titular de buena longitud
-    trusted_source: 3    # +3 fuente confiable
-    global_impact: 3     # +3 impacto global
-    repeated: -10        # -10 repetida (penalización fuerte)
-    disguised_ad: -6     # -6 publicidad disfrazada
-    no_clear_date: -3    # -3 sin fecha clara
-    unrelated_video: -4  # -4 el video no está directamente relacionado
+    keyword_ai: 5            # +5 IA / ML / modelos / robots / chips
+    futuristic_tech: 4       # +4 tecnología futurista (cuántica, humanoides, AGI...)
+    has_usable_media: 3      # +3 video o imagen usable para el slide
+    has_clear_video: 3       # +3 video claro
+    trusted_source: 3        # +3 fuente tecnológica confiable
+    recent: 2                # +2 noticia reciente
+    global_impact: 2         # +2 impacto global
+    visual_devices: 2        # +2 dispositivos / avances visuales
+    # Penalizaciones (refuerzan al filtro; normalmente ya se descartan antes)
+    political: -10           # -10 política general
+    economy_no_tech: -8      # -8 economía general sin tecnología
+    tabloid_sports_crime: -10 # -10 crimen / farándula / deportes
+    ambiguous_no_tech: -5    # -5 título ambiguo sin tema tech
+    repeated: -10            # -10 repetida
 
 # --- Salida ---
 output:

@@ -1,0 +1,27 @@
+# --- HTTP y parsing ---
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+lxml>=5.0.0
+
+# --- Renderizado dinámico (opcional, solo cuando una página lo necesita) ---
+playwright>=1.44.0
+
+# --- Configuración ---
+pyyaml>=6.0.1
+
+# --- Detección de idioma ---
+langdetect>=1.0.9
+
+# --- Fechas ---
+python-dateutil>=2.9.0
+
+# --- Plantillas HTML ---
+jinja2>=3.1.0
+
+# --- Consola bonita ---
+rich>=13.7.0
+
+# --- Traducción (fallback gratuito; opcional pero recomendado) ---
+deep-translator>=1.11.4
+
+# Nota: sqlite3, hashlib y urllib.parse forman parte de la librería estándar de Python.

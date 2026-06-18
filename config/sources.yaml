@@ -1,0 +1,173 @@
+# ===========================================================================
+# sources.yaml — Fuentes de noticias de tecnología / IA
+# ---------------------------------------------------------------------------
+# Para AGREGAR una fuente, copia un bloque y rellena los campos.
+# Para QUITARLA, bórrala o pon "enabled: false".
+#
+# Campos por fuente:
+#   name:          Nombre legible de la fuente.
+#   enabled:       true/false para activarla o desactivarla.
+#   trusted:       true si es una fuente confiable (suma puntos en el ranking).
+#   region:        País / región principal (se usa como pista de procedencia).
+#   listing_urls:  Páginas índice (portada de sección) de donde sacar enlaces.
+#   rss:           (opcional) Feed RSS/Atom. Se prefiere RSS si existe: es más
+#                  estable y respetuoso que raspar el HTML.
+#   article_pattern: (opcional) substring que debe contener la URL de un
+#                  artículo válido para esa fuente (filtra menús, tags, etc.).
+#   needs_js:      true si la página necesita Playwright para renderizar.
+#
+# IMPORTANTE: Este programa NO salta paywalls, captchas ni autenticación, y
+# respeta robots.txt. Si una fuente bloquea el scraping, simplemente se omite.
+# ===========================================================================
+
+sources:
+  # -------------------- Agencias / medios globales --------------------------
+  - name: "Reuters Technology"
+    enabled: true
+    trusted: true
+    region: "Global"
+    listing_urls:
+      - "https://www.reuters.com/technology/"
+    article_pattern: "/technology/"
+    needs_js: true
+
+  - name: "AP Technology"
+    enabled: true
+    trusted: true
+    region: "Global / USA"
+    listing_urls:
+      - "https://apnews.com/hub/technology"
+    article_pattern: "/article/"
+    needs_js: false
+
+  - name: "BBC Technology"
+    enabled: true
+    trusted: true
+    region: "Global / UK"
+    rss: "https://feeds.bbci.co.uk/news/technology/rss.xml"
+    listing_urls:
+      - "https://www.bbc.com/innovation"
+    article_pattern: "/news/"
+    needs_js: false
+
+  - name: "TechCrunch"
+    enabled: true
+    trusted: true
+    region: "Global / USA"
+    rss: "https://techcrunch.com/feed/"
+    listing_urls:
+      - "https://techcrunch.com/"
+    article_pattern: "techcrunch.com/20"
+    needs_js: false
+
+  - name: "The Verge"
+    enabled: true
+    trusted: true
+    region: "Global / USA"
+    rss: "https://www.theverge.com/rss/index.xml"
+    listing_urls:
+      - "https://www.theverge.com/tech"
+    article_pattern: "/2"
+    needs_js: false
+
+  - name: "Wired"
+    enabled: true
+    trusted: true
+    region: "Global / USA"
+    rss: "https://www.wired.com/feed/category/business/artificial-intelligence/latest/rss"
+    listing_urls:
+      - "https://www.wired.com/tag/artificial-intelligence/"
+    article_pattern: "/story/"
+    needs_js: false
+
+  - name: "MIT Technology Review"
+    enabled: true
+    trusted: true
+    region: "Global / USA"
+    rss: "https://www.technologyreview.com/feed/"
+    listing_urls:
+      - "https://www.technologyreview.com/topic/artificial-intelligence/"
+    article_pattern: "/20"
+    needs_js: false
+
+  - name: "CNBC Technology"
+    enabled: true
+    trusted: true
+    region: "Global / USA"
+    rss: "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=19854910"
+    listing_urls:
+      - "https://www.cnbc.com/technology/"
+    article_pattern: "/20"
+    needs_js: false
+
+  - name: "Euronews Next"
+    enabled: true
+    trusted: true
+    region: "Europe / Global"
+    rss: "https://www.euronews.com/next/rss"
+    listing_urls:
+      - "https://www.euronews.com/next"
+    article_pattern: "/next/"
+    needs_js: false
+
+  - name: "DW Technology"
+    enabled: true
+    trusted: true
+    region: "Germany / Global"
+    rss: "https://rss.dw.com/rdf/rss-en-sci"
+    listing_urls:
+      - "https://www.dw.com/en/science/s-12526"
+    article_pattern: "/a-"
+    needs_js: false
+
+  - name: "France24 Technology"
+    enabled: true
+    trusted: true
+    region: "France / Global"
+    rss: "https://www.france24.com/en/tag/technology/rss"
+    listing_urls:
+      - "https://www.france24.com/en/tag/technology/"
+    article_pattern: "/en/"
+    needs_js: false
+
+  # -------------------- Medios tech en español ------------------------------
+  - name: "Xataka"
+    enabled: true
+    trusted: true
+    region: "España / LatAm"
+    rss: "https://www.xataka.com/tag/inteligencia-artificial/rss"
+    listing_urls:
+      - "https://www.xataka.com/categoria/inteligencia-artificial"
+    article_pattern: "xataka.com/"
+    needs_js: false
+
+  - name: "Genbeta"
+    enabled: true
+    trusted: true
+    region: "España"
+    rss: "https://www.genbeta.com/tag/inteligencia-artificial/rss"
+    listing_urls:
+      - "https://www.genbeta.com/categoria/inteligencia-artificial"
+    article_pattern: "genbeta.com/"
+    needs_js: false
+
+  - name: "Hipertextual"
+    enabled: true
+    trusted: true
+    region: "España / LatAm"
+    rss: "https://hipertextual.com/feed"
+    listing_urls:
+      - "https://hipertextual.com/tag/inteligencia-artificial"
+    article_pattern: "hipertextual.com/20"
+    needs_js: false
+
+  # -------------------- Plantilla para tus propias fuentes ------------------
+  # - name: "Mi Fuente Tech"
+  #   enabled: false
+  #   trusted: false
+  #   region: "Global"
+  #   rss: "https://ejemplo.com/feed"
+  #   listing_urls:
+  #     - "https://ejemplo.com/tecnologia"
+  #   article_pattern: "/articulo/"
+  #   needs_js: false

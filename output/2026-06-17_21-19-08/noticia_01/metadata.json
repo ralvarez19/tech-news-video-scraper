@@ -1,0 +1,22 @@
+{
+  "title_es": "Consejos de inteligencia artificial de Google, Nvidia y Anthropic Boss para estudiantes",
+  "title_original": "Google, Nvidia and Anthropic bosses' AI tips for students",
+  "language_original": "en",
+  "source_name": "BBC Technology",
+  "region": "Global / UK",
+  "published_at": "2026-06-17T15:59:39.839000+00:00",
+  "scraped_at": "2026-06-18T02:18:06.915365+00:00",
+  "article_url": "https://www.bbc.com/news/videos/cewqg4qwq1wo?at_medium=RSS&at_campaign=rss",
+  "canonical_url": "https://www.bbc.com/news/videos/cewqg4qwq1wo",
+  "video_url": "https://www.bbc.com/news/videos/cewqg4qwq1wo",
+  "video_embed_url": "https://www.bbc.com/news/videos/cewqg4qwq1wo",
+  "video_type": "jsonld",
+  "score": 16,
+  "score_breakdown": {
+    "keyword_ai": 5,
+    "recent": 4,
+    "has_clear_video": 4,
+    "trusted_source": 3
+  },
+  "status": "selected"
+}

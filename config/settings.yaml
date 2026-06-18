@@ -1,0 +1,80 @@
+# ===========================================================================
+# settings.yaml — Configuración general del Tech News Video Scraper
+# Puedes editar todos estos valores sin tocar el código.
+# ===========================================================================
+
+# --- Comportamiento por defecto cuando el usuario no escribe nada ---
+defaults:
+  topic: "tecnología, inteligencia artificial y avances tecnológicos"
+  num_news: 5            # cuántas noticias válidas queremos generar
+  language: "es"         # idioma de salida (los textos finales se traducen a este idioma)
+
+# --- Búsqueda / scraping ---
+search:
+  max_articles_per_source: 25   # cuántos enlaces inspeccionar como máximo por fuente
+  max_age_days: 21              # descartar noticias más viejas que esto (0 = sin límite)
+  request_timeout: 20           # segundos de espera por petición HTTP
+  retries: 2                    # reintentos por petición
+  delay_between_requests: 1.0   # pausa (segundos) entre peticiones para ser respetuosos
+  respect_robots_txt: true      # respetar robots.txt cuando sea posible
+  user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) TechNewsVideoScraper/1.0 (+local research tool)"
+
+# --- Playwright (renderizado dinámico) ---
+playwright:
+  enabled: true          # si es false, nunca se usa Playwright (solo requests+BS4)
+  headless: true
+  nav_timeout: 25000     # ms
+  # Solo se usa cuando una fuente marca "needs_js: true" o cuando requests no encuentra video.
+
+# --- Detección de video ---
+video:
+  require_video: true            # cada noticia DEBE tener video; si no, se descarta
+  accept_types:                  # tipos de video aceptados
+    - youtube
+    - vimeo
+    - dailymotion
+    - html5            # etiqueta <video> nativa
+    - og_video         # Open Graph video
+    - jsonld           # VideoObject en JSON-LD
+    - iframe           # iframe genérico de reproductor
+  # No se descargan videos de terceros: se guarda el enlace/embed público.
+  download_video: false          # por defecto NO descargar (respeto a copyright/DRM)
+
+# --- Traducción ---
+translation:
+  target_language: "es"
+  # Backend: "auto" prueba lo que esté disponible. Opciones: auto | deep_translator | none
+  backend: "auto"
+  # API opcional. Si rellenas una clave, se usará ese servicio.
+  api:
+    provider: ""        # "deepl" | "google" | "" (vacío = sin API, usa fallback gratuito)
+    api_key: ""
+  # Si no hay ningún backend disponible, se deja el texto original (marcado como sin traducir).
+
+# --- Ranking ---
+ranking:
+  min_score: 1           # puntuación mínima para que una noticia sea aceptada
+  weights:
+    keyword_ai: 5        # +5 menciona IA / ML / modelos / robots / chips...
+    recent: 4            # +4 reciente
+    has_clear_video: 4   # +4 tiene video claro
+    trusted_source: 3    # +3 fuente confiable
+    global_impact: 3     # +3 impacto global
+    repeated: -10        # -10 repetida (penalización fuerte)
+    disguised_ad: -6     # -6 publicidad disfrazada
+    no_clear_date: -3    # -3 sin fecha clara
+    unrelated_video: -4  # -4 el video no está directamente relacionado
+
+# --- Salida ---
+output:
+  base_dir: "output"
+  folder_prefix: "noticia_"   # se generará noticia_01, noticia_02, ...
+  open_folder_when_done: false
+
+# --- Base de datos ---
+database:
+  path: "data/news.db"
+
+# --- Logs ---
+logging:
+  level: "INFO"          # DEBUG | INFO | WARNING | ERROR

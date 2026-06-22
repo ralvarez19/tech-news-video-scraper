@@ -17,6 +17,8 @@ una **pieza visual final `slide.png` (1080×1350)** lista para publicar como
 - Pregunta el **tema** al iniciar (ENTER = *tecnología e inteligencia artificial*).
 - Configurable: número de noticias (por defecto **5**) e idioma de salida (por defecto **español**).
 - Busca en **múltiples fuentes globales** definidas en `config/sources.yaml` (RSS o HTML).
+- **Genera una intro diaria con fecha** desde `assets/intro.png`, guardada como
+  `intro_rendered.png` dentro de cada run.
 - **Genera `slide.png` real por noticia** (1080×1350) — *no se queda en `card.html` sin renderizar*.
 - **Prioriza noticias con video**; si no completa las N pedidas, **rellena con
   noticias de imagen de alta calidad** (`media_type: image`).
@@ -33,7 +35,8 @@ una **pieza visual final `slide.png` (1080×1350)** lista para publicar como
   que no pase el filtro llega al top 5).
 - **Deduplicación** por `canonical_url`, `article_url` y hash de título.
 - Galería `index.html` + `summary.json` + `summary.txt` por ejecución.
-- **Envío automático a Telegram** de los 5 slides al finalizar (opcional, por `.env`).
+- **Envío automático a Telegram** de la intro, los 5 slides y el outro al finalizar
+  (opcional, por `.env`).
 - Respeta `robots.txt`. **No** salta paywalls, captchas, logins ni DRM. Guarda
   enlaces/embeds de video de terceros (no descarga videos protegidos).
 
@@ -56,7 +59,8 @@ rechazadas no se guardan en SQLite ni generan slide.
    TELEGRAM_SEND_AS_ALBUM=true
    ```
 
-2. Al finalizar, el programa envía los `slide.png` generados. Si
+2. Al finalizar, el programa envía la intro diaria, los `slide.png` generados y
+   `assets/out.png` como outro cuando existe. Si
    `TELEGRAM_SEND_AS_ALBUM=true` usa `sendMediaGroup` (álbum); si falla, envía
    uno por uno con `sendPhoto`. Cada slide lleva un caption con número, título,
    fuente y enlace al artículo.
@@ -80,6 +84,47 @@ rechazadas no se guardan en SQLite ni generan slide.
 > Para el resultado visual completo (palabras clave en violeta, imagen de fondo
 > nítida) ejecuta `playwright install` una vez. Sin él, el fallback Pillow sigue
 > produciendo un slide limpio y usable.
+
+## Intro diaria con fecha
+
+En cada ejecución, el flujo crea primero una intro diaria a partir de
+`assets/intro.png` y la guarda sin reemplazar el original:
+
+```text
+output/YYYY-MM-DD_HH-mm-ss/intro_rendered.png
+```
+
+La ruta también queda registrada en `summary.json`, `summary.txt` y aparece al
+inicio de la galería `index.html`. El orden del flujo visual queda:
+
+1. intro diaria con fecha;
+2. slides de noticias;
+3. outro (`assets/out.png`, si existe);
+4. exportación y envío a Telegram, si está configurado.
+
+La configuración está en `config/settings.yaml`, sección `intro`:
+
+```yaml
+intro:
+  enabled: true
+  base_image: "assets/intro.png"
+  output_name: "intro_rendered.png"
+  add_date: true
+  date_format: "%d de %B de %Y"
+  locale: "es"
+  text_position: "bottom_center"
+  font_size: 42
+  font_color: "#FFFFFF"
+  shadow: true
+```
+
+Para cambiar el texto usa `date_format`, por ejemplo
+`"Noticias de hoy · %d de %B de %Y"` o `"%A, %d de %B de %Y"`. Los nombres de
+meses y días se generan en español aunque el locale del sistema no esté
+configurado. Para moverlo cambia `text_position` (`bottom_center`,
+`top_right`, etc.) y ajusta `margin_x`, `margin_y`, `offset_x` u `offset_y`.
+Para el estilo visual puedes cambiar `font_color`, `font_size`, `shadow_*` o
+definir `font_path` apuntando a una tipografía dentro de `assets/fonts/`.
 
 ---
 
@@ -136,6 +181,9 @@ tech_news_video_scraper/
 ├── config/
 │   ├── sources.yaml       # Fuentes (agregar/quitar aquí)
 │   └── settings.yaml      # Configuración general
+├── assets/
+│   ├── intro.png          # Plantilla base de la intro diaria
+│   └── out.png            # Outro opcional enviado al final por Telegram
 ├── data/
 │   └── news.db            # Base SQLite (se crea sola)
 ├── output/                # Carpetas de salida por ejecución
@@ -153,8 +201,9 @@ tech_news_video_scraper/
     ├── video_detector.py  # Detección de video
     ├── media_extractor.py # Hero image, poster, chequeo de embed, descargas
     ├── card_renderer.py   # Render del slide.png (Playwright + fallback Pillow)
+    ├── intro_renderer.py  # Render de intro diaria con fecha sobre assets/intro.png
     ├── topic_filter.py    # Filtro DURO Tech/IA (antes de guardar/exportar)
-    ├── telegram_sender.py # Envío de los slides a Telegram (.env)
+    ├── telegram_sender.py # Envío de intro, slides y outro a Telegram (.env)
     ├── translator.py      # Traducción modular
     ├── ranker.py          # Puntuación / selección (con gate del filtro)
     ├── exporter.py        # Genera carpetas, slides, index/summary
@@ -170,6 +219,7 @@ Por cada ejecución se crea:
 ```
 output/2026-06-17_14-30-05/
 ├── index.html           # Galería con las 5 noticias (preview de cada slide)
+├── intro_rendered.png   # Intro diaria generada desde assets/intro.png
 ├── summary.json         # Resumen estructurado del run + estadísticas
 ├── summary.txt          # Resumen legible
 ├── noticia_01/

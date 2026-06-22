@@ -178,6 +178,34 @@ output:
   folder_prefix: "noticia_"   # se generará noticia_01, noticia_02, ...
   open_folder_when_done: false
 
+# --- Intro diaria ---
+# Usa assets/intro.png como plantilla y genera una copia dentro de cada run.
+intro:
+  enabled: true
+  base_image: "assets/intro.png"
+  output_name: "intro_rendered.png"
+  add_date: true
+  date_format: "%d de %B de %Y"
+  locale: "es"
+  text_position: "bottom_center"   # top_left | top_center | top_right | center | bottom_left | bottom_center | bottom_right
+  margin_x: 76
+  margin_y: 90
+  offset_x: 0
+  offset_y: 0
+  font_size: 42
+  font_color: "#FFFFFF"
+  font_path: ""
+  shadow: true
+  shadow_color: "#000000"
+  shadow_offset_x: 2
+  shadow_offset_y: 2
+  shadow_blur: 2
+  background: false
+  background_color: "#000000"
+  background_padding_x: 26
+  background_padding_y: 14
+  background_radius: 18
+
 # --- Base de datos ---
 database:
   path: "data/news.db"

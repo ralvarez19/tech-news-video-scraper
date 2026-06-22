@@ -2,7 +2,7 @@
 <!--
   index_template.html — galería del run. Muestra las noticias con su slide.png,
   título, fuente y enlaces (artículo, video, embed).
-  Variables: run_id, topic, generated_at, items[]
+  Variables: run_id, topic, generated_at, intro_rel, items[]
     item: { folder, slide_rel, title, source_name, date, media_type,
             embed_status, article_url, video_url, has_embed, embed_rel }
 -->
@@ -44,6 +44,21 @@
     <div class="sub">Run {{ run_id }} · generado {{ generated_at }} · {{ items|length }} noticias</div>
   </header>
   <div class="grid">
+    {% if intro_rel %}
+    <div class="card">
+      <div class="thumb"><img src="{{ intro_rel }}" alt="intro diaria"></div>
+      <div class="body">
+        <div class="tags">
+          <span class="tag image">INTRO</span>
+        </div>
+        <div class="title">Intro diaria con fecha</div>
+        <div class="meta"><span>Pulso Futuro</span><span>{{ generated_at[:10] }}</span></div>
+        <div class="links">
+          <a class="primary" href="{{ intro_rel }}" target="_blank" rel="noopener">Abrir intro</a>
+        </div>
+      </div>
+    </div>
+    {% endif %}
     {% for it in items %}
     <div class="card">
       <div class="thumb"><img src="{{ it.slide_rel }}" alt="slide"></div>

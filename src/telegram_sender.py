@@ -1,4 +1,4 @@
-"""telegram_sender.py — envía los slides generados a Telegram.
+"""telegram_sender.py — envía la intro, los slides y el outro a Telegram.
 
 Controlado por variables de entorno (.env):
     TELEGRAM_ENABLED        true/false
@@ -65,8 +65,8 @@ def _caption(index: int, article: Any) -> str:
 
 
 # --------------------------------------------------------------------------- #
-def send_run_to_telegram(run_output_dir, articles: list) -> str:
-    """Envía los slides del run a Telegram. Devuelve un estado legible.
+def send_run_to_telegram(run_output_dir, articles: list, intro_path=None, outro_path=None) -> str:
+    """Envía los visuales del run a Telegram. Devuelve un estado legible.
 
     Estados: "sent" | "partial" | "not_configured" | "disabled" | "no_slides" | "error"
     """
@@ -90,15 +90,19 @@ def send_run_to_telegram(run_output_dir, articles: list) -> str:
     as_album = _truthy(os.getenv("TELEGRAM_SEND_AS_ALBUM", "true"))
     run_output_dir = Path(run_output_dir)
 
-    # Recolectar slides + captions
+    # Recolectar intro + slides + outro
     items: list[tuple[Path, str]] = []
+    if intro_path and Path(intro_path).exists():
+        items.append((Path(intro_path), "<b>Pulso Futuro</b>"))
     for i, article in enumerate(articles, start=1):
         sp = _slide_path(run_output_dir, i, article)
         if sp:
             items.append((sp, _caption(i, article)))
+    if outro_path and Path(outro_path).exists():
+        items.append((Path(outro_path), "<b>Pulso Futuro</b>"))
 
     if not items:
-        log.info("[TELEGRAM] No hay slides para enviar.")
+        log.info("[TELEGRAM] No hay visuales para enviar.")
         return "no_slides"
 
     ok = False
@@ -110,9 +114,9 @@ def send_run_to_telegram(run_output_dir, articles: list) -> str:
         ok = _send_individually(token, chat_id, items)
 
     if ok:
-        log.info("[TELEGRAM] Slides enviados correctamente.")
+        log.info("[TELEGRAM] Visuales enviados correctamente.")
         return "sent"
-    log.warning("[TELEGRAM] No se pudieron enviar los slides.")
+    log.warning("[TELEGRAM] No se pudieron enviar los visuales.")
     return "error"
 
 

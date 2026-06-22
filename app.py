@@ -29,6 +29,7 @@ from src.translator import Translator
 from src.ranker import Ranker
 from src.card_renderer import CardRenderer
 from src.exporter import Exporter
+from src.intro_renderer import render_intro_with_date
 from src.topic_filter import is_valid_tech_ai_news, log_decision
 from src.telegram_sender import send_run_to_telegram
 
@@ -235,6 +236,7 @@ def run() -> int:
 
     # ---------------------- Traducción + export ---------------------- #
     run_dir = exporter.make_run_dir()
+    intro_path = render_intro_with_date(str(run_dir), settings)
     final: list[Article] = []
     items: list[dict] = []
     embed_blocked = with_video = with_image = 0
@@ -285,12 +287,20 @@ def run() -> int:
         "skipped_duplicates": skipped_duplicates,
         "slides_generated": slides_generated,
     }
+    if intro_path:
+        stats["intro_path"] = intro_path
+        try:
+            stats["intro_rel"] = str(Path(intro_path).relative_to(run_dir)).replace("\\", "/")
+        except Exception:
+            stats["intro_rel"] = intro_path
     exporter.finalize_run(run_dir, run_id, topic, items, stats)
     db.finish_run(run_id, len(final), discarded_no_media, skipped_duplicates, str(run_dir))
     db.close()
 
     # --- Envío a Telegram (opcional, controlado por .env) ---
-    telegram_status = send_run_to_telegram(run_dir, final)
+    outro_path = Path("assets/out.png") if Path("assets/out.png").exists() else None
+    telegram_status = send_run_to_telegram(run_dir, final, intro_path=intro_path,
+                                           outro_path=outro_path)
     stats["telegram"] = telegram_status
 
     print_summary(topic, run_dir, stats, final, log)

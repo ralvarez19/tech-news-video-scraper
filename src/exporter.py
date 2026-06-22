@@ -139,7 +139,8 @@ class Exporter:
             tpl = self.env.get_template("index_template.html")
             html = tpl.render(run_id=run_id, topic=topic,
                               generated_at=iso(now_utc())[:19].replace("T", " "),
-                              items=items)
+                              items=items,
+                              intro_rel=stats.get("intro_rel", ""))
             (run_dir / "index.html").write_text(html, encoding="utf-8")
         except Exception as exc:
             log.warning(f"No se pudo generar index.html: {exc}")
@@ -150,6 +151,7 @@ class Exporter:
             "topic": topic,
             "generated_at": iso(now_utc()),
             "output_dir": str(run_dir),
+            "intro_path": stats.get("intro_path", ""),
             "stats": stats,
             "items": items,
         }
@@ -161,6 +163,7 @@ class Exporter:
             f"Run: {run_id}",
             f"Tema: {topic}",
             f"Carpeta: {run_dir}",
+            f"Intro diaria: {stats.get('intro_path') or 'N/D'}",
             f"Noticias generadas: {stats.get('found')}/{stats.get('requested')}",
             f"Con video: {stats.get('with_video')}  |  Con imagen: {stats.get('with_image')}",
             f"Embeds bloqueados: {stats.get('embed_blocked')}",
